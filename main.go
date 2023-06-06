@@ -1,69 +1,76 @@
 package main
 
-import "fmt"
+import (
+	"context"
+	"encoding/json"
+	"fmt"
+	"log"
+	"net/http"
+	"os"
+	"os/signal"
+	"time"
 
-type TODOLISt struct {
-	task     string
-	priority string
+	"github.com/gorilla/mux"
+)
+
+type linkStruct struct {
+	Link         string
+	ShortendLink string
 }
 
-var TodoList = []TODOLISt{}
+var linkList []linkStruct
 
-func (t TODOLISt) CreateTask(task string, priority string) {
-
+func createHandler(w http.ResponseWriter, r *http.Request) {
+	var link linkStruct
+	err := json.NewDecoder(r.Body).Decode(&link)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+	log.Println("link:", link.Link)
+	for _, el := range linkList {
+		if el.Link == link.Link {
+			fmt.Fprintf(w, "Link is %s", el.ShortendLink)
+			return
+		}
+	}
+	link.ShortendLink = fmt.Sprintf("http://localhost:8000/%d", len(linkList)+1)
+	log.Println(link)
+	linkList = append(linkList, link)
+	fmt.Fprintf(w, "%+v", link)
+	return
 }
 
 func main() {
-	fmt.Println("--------------------------X---------------------------")
-	fmt.Println("Welcome To the TODO LIST CLI APP!")
-out:
-	for {
-		fmt.Println("Enter 1.Show Todo List 2.Add Task to List 3.Delete From Todo List 4.Update Task in Todo List 5.Exit Application")
-		var choice int
-		fmt.Scanln(&choice)
-		switch choice {
+	r := mux.NewRouter()
 
-		case 1:
-			for index, el := range TodoList {
-				fmt.Printf("%d:%+v\n", index+1, el)
-			}
+	r.HandleFunc("/create", createHandler).Methods("POST")
 
-		case 2:
-			fmt.Println("Enter the task name")
-			var taskName string
-			fmt.Scanln(&taskName)
-			fmt.Println("Enter the priority")
-			var priority string
-			fmt.Scanln(&priority)
-			newTask := TODOLISt{task: taskName, priority: priority}
-			TodoList = append(TodoList, newTask)
-
-		case 3:
-			fmt.Println("Enter the Index of the task to be deleted")
-			var index int
-			fmt.Scanln(&index)
-			TodoList = append(TodoList[:index], TodoList[index+1:]...)
-			for _, el := range TodoList {
-				fmt.Println(el)
-			}
-		case 4:
-			fmt.Println("Enter the element index to be updated")
-			var index int
-			fmt.Scanln(&index)
-			fmt.Println("Enter the new Task Name")
-			var newTaskName string
-			fmt.Scanln(&newTaskName)
-			fmt.Println("Enter the new Priority")
-			var newPriority string
-			fmt.Scanln(&newPriority)
-			TodoList[index] = TODOLISt{task: newTaskName, priority: newPriority}
-			for _, el := range TodoList {
-				fmt.Println(el)
-			}
-		case 5:
-			break out
-		}
+	server := &http.Server{
+		Addr:         "127.0.0.1:8000",
+		Handler:      r,
+		ReadTimeout:  5 * time.Second,
+		WriteTimeout: 10 * time.Second,
+		IdleTimeout:  120 * time.Second,
 	}
-	fmt.Println("--------------------------X---------------------------")
 
+	go func() {
+		log.Println("Starting the server on Port: 8000")
+		err := server.ListenAndServe()
+		if err != nil {
+			log.Panicf("Error while starting server: %s\n Gracefully Shutting Down \n", err)
+			os.Exit(1)
+		}
+	}()
+
+	c := make(chan os.Signal, 1)
+	signal.Notify(c, os.Interrupt)
+	signal.Notify(c, os.Kill)
+
+	sig := <-c
+
+	log.Println("Got Signal", sig)
+
+	ctx, _ := context.WithTimeout(context.Background(), 30*time.Second)
+	server.Shutdown(ctx)
 }
