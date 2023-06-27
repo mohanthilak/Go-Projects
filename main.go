@@ -2,8 +2,8 @@ package main
 
 import (
 	"context"
-	"encoding/json"
-	"fmt"
+	"example/todo-list/Controllers"
+	"example/todo-list/Infra/DB"
 	"log"
 	"net/http"
 	"os"
@@ -11,41 +11,25 @@ import (
 	"time"
 
 	"github.com/gorilla/mux"
+	"go.mongodb.org/mongo-driver/mongo"
+	"go.mongodb.org/mongo-driver/mongo/options"
 )
 
-type linkStruct struct {
-	Link         string
-	ShortendLink string
-}
-
-var linkList []linkStruct
-
-func createHandler(w http.ResponseWriter, r *http.Request) {
-	var link linkStruct
-	err := json.NewDecoder(r.Body).Decode(&link)
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
-		return
-	}
-	log.Println("link:", link.Link)
-	for _, el := range linkList {
-		if el.Link == link.Link {
-			fmt.Fprintf(w, "Link is %s", el.ShortendLink)
-			return
-		}
-	}
-	link.ShortendLink = fmt.Sprintf("http://localhost:8000/%d", len(linkList)+1)
-	log.Println(link)
-	linkList = append(linkList, link)
-	fmt.Fprintf(w, "%+v", link)
-	return
-}
-
 func main() {
+	client, err := mongo.Connect(context.TODO(), options.Client().ApplyURI("mongodb://localhost:27017"))
+	if err != nil {
+		panic(err)
+	}
+	var controller Controllers.ControllerStruct
+	controller.DB = DB.NewLinkWorker(client)
+
 	r := mux.NewRouter()
 
-	r.HandleFunc("/create", createHandler).Methods("POST")
+	log.Println("Hi there")
 
+	r.HandleFunc("/create", controller.CreateHandler).Methods("POST")
+
+	//Graceful Shutdown
 	server := &http.Server{
 		Addr:         "127.0.0.1:8000",
 		Handler:      r,
