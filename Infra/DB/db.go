@@ -33,25 +33,26 @@ func (lmw *LinkMongoWorker) AddRecordToURLCol(link, shortenedURL string) {
 	log.Println(result.InsertedID)
 }
 
-func (lmw *LinkMongoWorker) Findlink(link string) bool {
-	var result bson.M
-	err := lmw.UrlCollection.FindOne(context.TODO(), bson.D{{"link", link}}).Decode(&result)
+func (lmw *LinkMongoWorker) Findlink(link string) (bool, *LinkStruct, int64) {
+	countDoc, err := lmw.UrlCollection.CountDocuments(context.TODO(), bson.D{})
+	if err != nil {
+		log.Fatal(err)
+	}
+	var result *LinkStruct
+	err = lmw.UrlCollection.FindOne(context.TODO(), bson.D{{Key: "link", Value: link}}).Decode(&result)
 	if err == mongo.ErrNoDocuments {
 		log.Printf("No document was found with the title %s\n", link)
-		return false
+		return false, result, countDoc
 	}
-	log.Println("55555555555555555")
 	if err != nil {
 		panic(err)
 	}
-	log.Println("6666666666666666666")
 
 	jsonData, err := json.MarshalIndent(result, "", "    ")
-	log.Println("444444444444444444")
 
 	if err != nil {
-		panic(err)
+		log.Fatal(err)
 	}
 	log.Printf("%s\n!!!!!!!!!!!!!!!!!!!!!!", jsonData)
-	return true
+	return true, result, countDoc
 }

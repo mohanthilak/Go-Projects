@@ -2,5 +2,5 @@ POST http://localhost:8000/create
 Content-Type: application/json
 
 {
-    "Link": "s"
+    "Link": "64545"
 }

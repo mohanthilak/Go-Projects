@@ -20,6 +20,7 @@ func main() {
 	if err != nil {
 		panic(err)
 	}
+	defer client.Disconnect(context.TODO())
 	var controller Controllers.ControllerStruct
 	controller.DB = DB.NewLinkWorker(client)
 
