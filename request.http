@@ -2,5 +2,11 @@ POST http://localhost:8000/create
 Content-Type: application/json
 
 {
-    "Link": "64545"
+    "Link": "34w"
 }
+
+################ websockets ############
+GET http://localhost:8000/ HTTP/1.1
+
+###
+GET http://localhost:8000/ws/trial HTTP/1.1

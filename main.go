@@ -1,61 +1,64 @@
 package main
 
 import (
-	"context"
-	"example/todo-list/Controllers"
-	"example/todo-list/Infra/DB"
+	"encoding/json"
 	"log"
 	"net/http"
-	"os"
-	"os/signal"
 	"time"
 
 	"github.com/gorilla/mux"
-	"go.mongodb.org/mongo-driver/mongo"
-	"go.mongodb.org/mongo-driver/mongo/options"
 )
 
+// var upgrader = websocket.Upgrader{
+// 	ReadBufferSize:  1024,
+// 	WriteBufferSize: 1024,
+// }
+
+// func wsReader(conn *websocket.Conn) {
+// 	for {
+// 		messageType, p, err := conn.ReadMessage()
+// 		if err != nil {
+// 			log.Println(err)
+// 			return
+// 		}
+// 		log.Println(messageType, string(p))
+// 		wsWriter(conn, p)
+// 	}
+// }
+
+// func wsWriter(conn *websocket.Conn, p []byte) {
+// 	err := conn.WriteMessage(1, p)
+// 	if err != nil {
+// 		log.Println("damn that error", err)
+// 	}
+// }
+
 func main() {
-	client, err := mongo.Connect(context.TODO(), options.Client().ApplyURI("mongodb://localhost:27017"))
-	if err != nil {
-		panic(err)
-	}
-	defer client.Disconnect(context.TODO())
-	var controller Controllers.ControllerStruct
-	controller.DB = DB.NewLinkWorker(client)
+	router := mux.NewRouter()
+	// wsr := router.PathPrefix("/ws").Subrouter()
 
-	r := mux.NewRouter()
+	manager := MakeManager()
 
-	log.Println("Hi there")
+	router.HandleFunc("/ws", manager.serveWS)
 
-	r.HandleFunc("/create", controller.CreateHandler).Methods("POST")
+	router.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+		w.Header().Add("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(map[string]any{"success": true, "data": "Message Received", "error": nil})
+	})
 
-	//Graceful Shutdown
-	server := &http.Server{
+	server := http.Server{
 		Addr:         "127.0.0.1:8000",
-		Handler:      r,
+		Handler:      router,
 		ReadTimeout:  5 * time.Second,
 		WriteTimeout: 10 * time.Second,
-		IdleTimeout:  120 * time.Second,
+		IdleTimeout:  1 * time.Minute,
 	}
 
-	go func() {
-		log.Println("Starting the server on Port: 8000")
-		err := server.ListenAndServe()
-		if err != nil {
-			log.Panicf("Error while starting server: %s\n Gracefully Shutting Down \n", err)
-			os.Exit(1)
-		}
-	}()
+	log.Println("listening at port 8000")
+	err := server.ListenAndServe()
+	if err != nil {
+		log.Fatal(err)
+	}
 
-	c := make(chan os.Signal, 1)
-	signal.Notify(c, os.Interrupt)
-	signal.Notify(c, os.Kill)
-
-	sig := <-c
-
-	log.Println("Got Signal", sig)
-
-	ctx, _ := context.WithTimeout(context.Background(), 30*time.Second)
-	server.Shutdown(ctx)
 }
